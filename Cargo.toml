@@ -1,6 +1,6 @@
 [package]
 name = "tracing-gstreamer"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2018"
 authors = ["Simonas Kazlauskas <tracing-gstreamer@kazlauskas.me>"]
 license = "MIT OR Apache-2.0"
@@ -16,10 +16,10 @@ harness = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-libc = "0.2"
+libc = "0.2.69"
 once_cell = "1.8"
 tracing = "0.1"
-tracing-core = "0.1"
+tracing-core = ">=0.1.17, <=0.1.21"
 gstreamer = "0.17.3"
 thread_local = "1"
 
