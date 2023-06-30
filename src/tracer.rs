@@ -51,7 +51,7 @@ impl TracingTracerPriv {
             None,
             None,
             GstCallsiteKind::Span,
-            &["gstpad.state", "gstpad.parent.name"],
+            &["gstpad.state", "gstpad.name", "gstpad.parent.name"],
         );
         let interest = callsite.interest();
         if interest.is_never() {
@@ -65,6 +65,8 @@ impl TracingTracerPriv {
         let gstpad_flags_value = Some(tracing_core::field::display(crate::PadFlags(
             pad.pad_flags().bits(),
         )));
+        let name = pad.name();
+        let name_value = Some(name.as_str());
         let gstpad_parent = pad.parent_element();
         let gstpad_parent_name_value = gstpad_parent.map(|p| p.name());
         let gstpad_parent_name_value = gstpad_parent_name_value.as_ref().map(|n| n.as_str());
@@ -73,6 +75,7 @@ impl TracingTracerPriv {
         let values = field_values![fields_iter =>
             // /!\ /!\ /!\ Must be in the same order as the field list above /!\ /!\ /!\
             "gstpad.flags" = gstpad_flags_value;
+            "gstpad.name" = name_value;
             "gstpad.parent.name" = gstpad_parent_name_value;
         ];
         let valueset = fields.value_set(&values);
