@@ -118,12 +118,23 @@ impl ObjectImpl for TracingTracerPriv {
         self.register_hook(TracerHook::PadPushEventPre);
         self.register_hook(TracerHook::PadPullRangePost);
         self.register_hook(TracerHook::PadPullRangePre);
+
+        #[cfg(feature = "v1_22")]
+        {
+            self.register_hook(TracerHook::PadChainPre);
+            self.register_hook(TracerHook::PadChainPost);
+        }
     }
 }
 
 impl GstObjectImpl for TracingTracerPriv {}
 
 impl TracerImpl for TracingTracerPriv {
+    #[cfg(feature = "v1_22")]
+    fn pad_chain_pre(&self, _: u64, pad: &Pad, _: &Buffer) {
+        self.pad_pre("pad_chain", pad);
+    }
+
     fn pad_push_pre(&self, _: u64, pad: &Pad, _: &Buffer) {
         self.pad_pre("pad_push", pad);
     }
@@ -157,6 +168,11 @@ impl TracerImpl for TracingTracerPriv {
     }
 
     fn pad_push_post(&self, _: u64, _: &Pad, _: Result<FlowSuccess, FlowError>) {
+        self.pop_span();
+    }
+
+    #[cfg(feature = "v1_22")]
+    fn pad_chain_post(&self, _: u64, _: &Pad, _: Result<FlowSuccess, FlowError>) {
         self.pop_span();
     }
 

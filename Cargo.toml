@@ -31,3 +31,6 @@ tracing-tracy = "0.10"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "tracing_gstreamer_docs"]
+
+[features]
+v1_22 = ["gstreamer/v1_22"]
