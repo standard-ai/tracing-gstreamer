@@ -99,6 +99,14 @@ fn query_name(query: &gstreamer::QueryRef) -> &'static str {
     }
 }
 
+fn message_name(message: &gstreamer::Message) -> &'static str {
+    use gstreamer::ffi as gffi;
+    unsafe {
+        let type_ = gffi::gst_message_type_get_name((*message.as_ptr()).type_);
+        std::ffi::CStr::from_ptr(type_).to_str().unwrap()
+    }
+}
+
 /// Enable the integration between GStreamer logging system and the `tracing` library.
 ///
 /// Once enabled the default [`tracing::Subscriber`][tracing_core::subscriber::Subscriber] will
