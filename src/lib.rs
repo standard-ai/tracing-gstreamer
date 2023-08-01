@@ -15,6 +15,7 @@
 // such as https://gitlab.freedesktop.org/gstreamer/gstreamer-rs/-/issues/352
 #![deny(unsafe_op_in_unsafe_fn)]
 
+use gstreamer::prelude::IsA;
 use tracing_core::field::Value;
 
 #[macro_use]
@@ -158,6 +159,27 @@ pub fn register(p: Option<&gstreamer::Plugin>) -> Result<(), gstreamer::glib::Bo
         <fmttracer::FmtTracer as gstreamer::glib::StaticType>::static_type(),
     )?;
     Ok(())
+}
+
+/// Attach a span to a GStreamer object.
+///
+/// All events logged for this object and its children will have the provided span as root.
+/// This can be used to associate extra context to a pipeline for example.
+///
+/// ```
+/// gstreamer::init().unwrap();
+///
+/// let pipeline = gstreamer::Pipeline::new(None);
+/// let gst_log_span = tracing::info_span!(
+///     parent: None,
+///     "gst log",
+///     pipeline = "encoding",
+///     id = 42,
+/// );
+/// tracing_gstreamer::attach_span(&pipeline, gst_log_span);
+/// ```
+pub fn attach_span<O: IsA<gstreamer::Object>>(object: &O, span: tracing::Span) {
+    log::attach_span(object, span)
 }
 
 mod gst_plugin {

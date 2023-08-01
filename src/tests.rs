@@ -33,6 +33,7 @@ struct GstEvent {
     kvs: KV,
     level: Level,
     target: &'static str,
+    has_parent: bool,
 }
 
 impl Visit for GstEvent {
@@ -182,6 +183,16 @@ impl Subscriber for MockSubscriber {
                         expected.level,
                     );
                 }
+                let has_parent = e.parent().is_some();
+                if has_parent && !expected.has_parent {
+                    panic!(
+                        "[{}] event has parent {:?} but should not",
+                        self.name,
+                        e.parent(),
+                    );
+                } else if !has_parent && expected.has_parent {
+                    panic!("[{}] event does not parent but should", self.name,);
+                }
                 e.record(&mut expected);
             }
         }
@@ -226,6 +237,7 @@ fn test_simple_error() {
             kvs: Default::default(),
             level: Level::ERROR,
             target: "test_error_cat",
+            has_parent: false,
         })],
     );
 }
@@ -243,6 +255,7 @@ fn test_simple_warning() {
             kvs: Default::default(),
             level: Level::WARN,
             target: "test_simple_cat",
+            has_parent: false,
         })],
     );
 }
@@ -264,24 +277,28 @@ fn test_simple_events() {
                 kvs: Default::default(),
                 level: Level::WARN,
                 target: "test_simple_cat",
+                has_parent: false,
             }),
             Expect::GstEvent(GstEvent {
                 message: "simple info",
                 kvs: Default::default(),
                 level: Level::INFO,
                 target: "test_simple_cat",
+                has_parent: false,
             }),
             Expect::GstEvent(GstEvent {
                 message: "simple memdump",
                 kvs: Default::default(),
                 level: Level::TRACE,
                 target: "test_simple_cat",
+                has_parent: false,
             }),
             Expect::GstEvent(GstEvent {
                 message: "simple trace",
                 kvs: Default::default(),
                 level: Level::TRACE,
                 target: "test_simple_cat",
+                has_parent: false,
             }),
         ],
     );
@@ -309,6 +326,7 @@ fn test_with_object() {
             },
             level: Level::ERROR,
             target: "test_object_cat",
+            has_parent: false,
         })],
     );
 }
@@ -335,6 +353,7 @@ fn test_with_upcast_object() {
             },
             level: Level::ERROR,
             target: "test_object_cat",
+            has_parent: false,
         })],
     );
 }
@@ -365,6 +384,7 @@ fn test_with_pad() {
             },
             level: Level::ERROR,
             target: "test_pad_cat",
+            has_parent: false,
         })],
     );
 }
@@ -387,12 +407,14 @@ fn test_disintegration() {
                 kvs: Default::default(),
                 level: Level::ERROR,
                 target: "disintegration",
+                has_parent: false,
             }),
             Expect::GstEvent(GstEvent {
                 message: "chaenomeles",
                 kvs: Default::default(),
                 level: Level::ERROR,
                 target: "disintegration",
+                has_parent: false,
             }),
         ],
     );
@@ -411,6 +433,7 @@ fn test_formatting() {
             kvs: Default::default(),
             level: Level::WARN,
             target: "ANSWERS",
+            has_parent: false,
         })],
     );
 }
@@ -425,12 +448,14 @@ fn test_interests() {
                 kvs: Default::default(),
                 level: Level::WARN,
                 target: "INTERESTS",
+                has_parent: false,
             }),
             Expect::GstEvent(GstEvent {
                 message: "errors should be visible",
                 kvs: Default::default(),
                 level: Level::ERROR,
                 target: "INTERESTS",
+                has_parent: false,
             }),
         ],
     );
@@ -455,6 +480,37 @@ fn test_interests() {
     );
 }
 
+fn test_user_span() {
+    let p = g::Pipeline::new(None);
+
+    let span = tracing::error_span!("pipeline span", pipeline = true);
+    attach_span(&p, span);
+
+    let p_addr = p.as_object_ref().to_glib_none().0 as usize;
+    MockSubscriber::with_expected(
+        |m| m.target() == "gstreamer::test_object_cat",
+        "test_with_object",
+        move || {
+            let cat = g::DebugCategory::new("test_object_cat", g::DebugColorFlags::empty(), None);
+            g::error!(cat, obj: &p, "with object");
+        },
+        vec![Expect::GstEvent(GstEvent {
+            message: "with object",
+            kvs: KV {
+                gobject_address: Some(p_addr),
+                gobject_type: Some("GstPipeline"),
+                gstobject_name: Some("pipeline1"),
+                gstelement_state: Some("null"),
+                gstelement_pending_state: Some("void-pending"),
+                ..Default::default()
+            },
+            level: Level::ERROR,
+            target: "test_object_cat",
+            has_parent: true, // FIXME: does not actually work, I think because the subscriber does not know about the span
+        })],
+    );
+}
+
 // NB: we aren't using the test harness here to allow us for the necessary gstreamer setup more
 // straightforwardly.
 pub(crate) fn run() {
@@ -471,5 +527,6 @@ pub(crate) fn run() {
     test_disintegration();
     test_formatting();
     test_interests();
+    test_user_span();
     disintegrate_events();
 }
