@@ -264,17 +264,40 @@ pub(crate) fn debug_remove_log_function() {
     }
 }
 
+
 #[inline]
 fn span_quark() -> &'static gstreamer::glib::Quark {
     static ELEMENT_SPAN_QUARK: OnceCell<gstreamer::glib::Quark> = OnceCell::new();
+    // Generate a unique TypeId specifically for Span quark’s name. This gives some probabilistic
+    // security against users of this library overwriting our span with their own types, making
+    // attach_span unsound.
+    //
+    // We’re still going to be storing `tracing::Span` within the objects directly, because that’s
+    // just more convenient.
+    struct QDataTracingSpan(tracing::Span);
+
     ELEMENT_SPAN_QUARK.get_or_init(|| {
-        let gstr = gstreamer::glib::GStr::from_utf8_with_nul(b"tracing-gstreamer:span\0").unwrap();
+        let type_id = std::any::TypeId::of::<QDataTracingSpan>();
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(&type_id, &mut hasher);
+        let type_id_hash = std::hash::Hasher::finish(&hasher);
+        let key = format!("tracing-gstreamer:{}\0", type_id_hash);
+        let gstr = gstreamer::glib::GStr::from_utf8_with_nul(key.as_bytes()).unwrap();
         gstreamer::glib::Quark::from_str(gstr)
     })
 }
 
 pub(crate) fn attach_span<O: IsA<gstreamer::Object>>(object: &O, span: tracing::Span) {
     unsafe {
+        // SAFETY:
+        //
+        // **Type safety**: We have given our best shot at making sure that no other random piece
+        // of code, either our own, or any other, interacting with this crate, overwrites our
+        // `qdata` with their own code. In that sense the only thing that might get stored is a
+        // `tracing::Span`.
+        //
+        // **Datarace safety**: TODO: this function can be still called in a loop in a separate
+        // thread to introduce a data race with a function that reads this data out.
         object.set_qdata(*span_quark(), span);
     }
 }
